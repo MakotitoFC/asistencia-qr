@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Asistencia QR</title>
+  <style>
+    body{font-family:system-ui;margin:24px;max-width:900px}
+    img{max-width:220px}
+    .card{border:1px solid #ddd;border-radius:10px;padding:12px;margin:10px 0;display:flex;justify-content:space-between;align-items:center;gap:16px}
+    .name{font-weight:700}
+    .muted{color:#666}
+  </style>
+</head>
+<body>
+  <h2>Participantes (desde Google Sheet)</h2>
+  <div id="list">Cargando...</div>
+
+  <script>
+    async function load() {
+      try {
+        const r = await fetch('/api/participants');
+        const j = await r.json();
+        const list = document.getElementById('list');
+        list.innerHTML = '';
+
+        if (!j.participants || !j.participants.length) {
+          list.textContent = 'No hay participantes.';
+          return;
+        }
+
+        j.participants.forEach(p => {
+          const id = p.id || p.ID || '';
+          const nombre = p.nombre || p.Nombre || '';
+          const asistencia = (p.asistencia || p.Asistencia || '').toString().toUpperCase() === 'SI';
+
+          const div = document.createElement('div');
+          div.className = 'card';
+          div.innerHTML = `
+            <div>
+              <div class="name">${nombre}</div>
+              <div class="muted">ID: ${id}</div>
+              <div>Asistencia: ${asistencia ? 'SI' : '-'}</div>
+              <div style="margin-top:8px">
+                <a href="/qr/${encodeURIComponent(id)}.png" download="qr-${id}.png">Descargar QR</a>
+              </div>
+            </div>
+            <div>
+              <img src="/qr/${encodeURIComponent(id)}.png" alt="QR de ${id}">
+            </div>
+          `;
+          list.appendChild(div);
+        });
+      } catch (e) {
+        document.getElementById('list').textContent = 'Error cargando participantes.';
+        console.error(e);
+      }
+    }
+    load();
+  </script>
+</body>
+</html>
