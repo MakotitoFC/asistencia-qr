@@ -181,21 +181,19 @@ app.get('/card/:id.png', async (req, res) => {
     const base = getBase(req);
     const url = `${base}/attend?pid=${encodeURIComponent(id)}`;
     
-        // Layout fijo y orden correcto de cálculos
+    // Layout fijo y orden correcto de cálculos
     const W = 1080, H = 1350;
-    const M = 40;                  // margen exterior
-    const cardX = M, cardY = M;    // posición de la tarjeta
+    const M = 40;
+    const cardX = M, cardY = M;
     const cardW = W - 2*M, cardH = H - 2*M;
-    const headerH = 200;           // alto de la franja superior
+    const headerH = 200;
 
-    // QR: define primero su tamaño y su top/left
     const qrSize = 520;
-    const qrTop  = cardY + headerH + 60;                  // debajo de la franja
+    const qrTop  = cardY + headerH + 60;
     const qrLeft = Math.round(W/2 - qrSize/2);
 
-    // Textos (dependen del qrTop, por eso van después)
-    const nameY = qrTop + qrSize + 60;                    // nombre del asistente
-    const legendBoxY = nameY + 26;                        // cajita de la leyenda
+    const nameY       = qrTop + qrSize + 60;
+    const legendBoxY  = nameY + 26;
     const legendTextY = legendBoxY + 40;
 
     const svg = Buffer.from(`
@@ -210,28 +208,22 @@ app.get('/card/:id.png', async (req, res) => {
           </linearGradient>
         </defs>
 
-        <!-- Fondo general -->
         <rect width="${W}" height="${H}" fill="#f3f4f6"/>
-
-        <!-- Tarjeta -->
         <g filter="url(#shadow)">
           <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="28" fill="#fff"/>
         </g>
 
-        <!-- Franja superior -->
         <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${headerH}" rx="28" fill="url(#hdr)"/>
         <text x="${W/2}" y="${cardY + headerH - 28}" text-anchor="middle"
-              font-family="Inter,system-ui" font-size="46" font-weight="800" fill="#ffffff">
+              font-family="Inter,system-ui" font-size="46" font-weight="800" fill="#fff">
           FULL DAY INCUBIANO
         </text>
 
-        <!-- Nombre -->
         <text x="${W/2}" y="${nameY}" text-anchor="middle"
               font-family="Inter,system-ui" font-size="46" font-weight="800" fill="#111827">
           ${nombre.replace(/&/g,'&amp;')}
         </text>
 
-        <!-- Leyenda -->
         <rect x="${cardX + 70}" y="${legendBoxY}" width="${cardW - 140}" height="60"
               rx="14" fill="#eef2ff" stroke="#c7d2fe" stroke-width="1"/>
         <text x="${W/2}" y="${legendTextY}" text-anchor="middle"
@@ -240,24 +232,21 @@ app.get('/card/:id.png', async (req, res) => {
         </text>
       </svg>
     `);
+    let img = sharp(svg);
 
-        // Logo en la franja superior (cargado desde /public)
+    // Logo en franja (opcional)
     try {
       const logoBuf = await loadLogoBuffer();
       if (logoBuf) {
-        const logoH = 60; // alto del logo en la franja
+        const logoH = 60;
         const logoPng = await sharp(logoBuf).resize({ height: logoH, fit: 'inside' }).png().toBuffer();
         const meta = await sharp(logoPng).metadata();
         const lw = meta.width || 160;
         const logoTop  = cardY + Math.round((headerH - logoH)/2);
-        const logoLeft = cardX + 24; // margen izquierdo
+        const logoLeft = cardX + 24;
         img = img.composite([{ input: logoPng, left: logoLeft, top: logoTop }]);
-      } else {
-        console.warn('Logo no encontrado en /public (logo.png|jpg|jpeg|webp|svg)');
       }
-    } catch (e) {
-      console.warn('Error al componer logo:', e.message);
-    }
+    } catch(e) { console.warn('Logo:', e.message); }
 
     // QR centrado
     img = img.composite([{ input: qrPng, left: qrLeft, top: qrTop }]);
@@ -407,7 +396,10 @@ app.get('/', (_req, res) => {
           +   '<div class="qr"><img loading="lazy" src="/qr/'+encodeURIComponent(id)+'.png" alt="QR '+id+'"/></div>'
           +   '<div class="name">'+nombre+'</div>'
           +   '<div class="hint">Escanea el QR para registrar tu asistencia</div>'
-          +   '<a class="btn" href="/card/'+encodeURIComponent(id)+'.png" download="card-'+id+'.png">Descargar Card</a>';
+          +   '<button class="btn" type="button"
+                onclick="downloadCard('${encodeURIComponent(id)}')">
+                Descargar Card
+              </button>';
           + '</div>';
         list.appendChild(card);
       });
@@ -422,9 +414,16 @@ app.get('/', (_req, res) => {
       const blob = await r.blob();
       const url  = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = 'card-'+decodeURIComponent(idEnc)+'.png';
-      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    }catch(e){ console.error(e); alert('Error descargando la card.'); }
+      a.href = url;
+      a.download = 'card-'+decodeURIComponent(idEnc)+'.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }catch(e){
+      console.error(e);
+      alert('Error descargando la card.');
+    }
   }
   </script>
   </body></html>`);
