@@ -188,12 +188,21 @@ app.get('/card/:id.png', async (req, res) => {
     let img = sharp(svg);
 
     // logo local: public/logo.png (si existe)
+    // logo local: prueba logo.png y LOGO.png (case-sensitive en Linux)
     try {
-      const logoPath = path.join(__dirname, 'public', 'logo.png');
-      const logoBuf = await fs.readFile(logoPath);
-      const logo = await sharp(logoBuf).resize({ width: 200, height: 90, fit: 'inside' }).png().toBuffer();
-      img = img.composite([{ input: logo, top: 60, left: 70 }]);
-    } catch (e) { /* sin logo */ }
+      let logoBuf;
+      try { logoBuf = await fs.readFile(path.join(__dirname, 'public', 'logo.png')); }
+      catch { logoBuf = await fs.readFile(path.join(__dirname, 'public', 'LOGO.png')); }
+
+      const logo = await sharp(logoBuf)
+        .resize({ width: 200, height: 90, fit: 'inside' })
+        .png()
+        .toBuffer();
+
+      img = img.composite([{ input: logo, top: 60, left: 70 }]); // posición actual
+    } catch (e) {
+      console.warn('Logo no encontrado en /public/logo.png ni /public/LOGO.png');
+    }
 
     // QR centrado
     img = img.composite([{ input: qrPng, top: 380, left: Math.round((W-680)/2) }]);
