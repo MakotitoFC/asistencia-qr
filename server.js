@@ -184,18 +184,25 @@ app.get('/card/:id.png', async (req, res) => {
     const qrPng = await QRCode.toBuffer(url, { width: 520, margin: 1 });
     // Layout fijo y orden correcto de cálculos
     const W = 1080, H = 1350;
-    const M = 40;
-    const cardX = M, cardY = M;
-    const cardW = W - 2*M, cardH = H - 2*M;
+    // ↑ aumenta el margen lateral para hacer la tarjeta más angosta
+    const SIDE = 140;   // prueba 140–180 según gusto
+    const TOP  = 40;
+
+    const cardX = SIDE, cardY = TOP;
+    const cardW = W - 2*SIDE, cardH = H - 2*TOP;
     const headerH = 200;
+
+    // centro horizontal de la tarjeta (no del lienzo)
+    const CX = cardX + cardW/2;
 
     const qrSize = 520;
     const qrTop  = cardY + headerH + 60;
-    const qrLeft = Math.round(W/2 - qrSize/2);
+    const qrLeft = Math.round(CX - qrSize/2);
 
     const nameY       = qrTop + qrSize + 60;
     const legendBoxY  = nameY + 26;
     const legendTextY = legendBoxY + 40;
+
 
     const svg = Buffer.from(`
       <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
@@ -215,19 +222,19 @@ app.get('/card/:id.png', async (req, res) => {
         </g>
 
         <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${headerH}" rx="28" fill="url(#hdr)"/>
-        <text x="${W/2}" y="${cardY + headerH - 28}" text-anchor="middle"
+        <text x="${CX}" y="${cardY + headerH - 28}" text-anchor="middle"
               font-family="Inter,system-ui" font-size="46" font-weight="800" fill="#fff">
           FULL DAY INCUBIANO
         </text>
 
-        <text x="${W/2}" y="${nameY}" text-anchor="middle"
+        <text x="${CX}" y="${nameY}" text-anchor="middle"
               font-family="Inter,system-ui" font-size="46" font-weight="800" fill="#111827">
           ${nombre.replace(/&/g,'&amp;')}
         </text>
 
         <rect x="${cardX + 70}" y="${legendBoxY}" width="${cardW - 140}" height="60"
               rx="14" fill="#eef2ff" stroke="#c7d2fe" stroke-width="1"/>
-        <text x="${W/2}" y="${legendTextY}" text-anchor="middle"
+        <text x="${CX}" y="${legendTextY}" text-anchor="middle"
               font-family="Inter,system-ui" font-size="24" fill="#4b5563">
           Escanea el QR para registrar tu asistencia
         </text>
