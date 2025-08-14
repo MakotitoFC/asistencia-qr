@@ -198,26 +198,26 @@ app.get('/card/:id.png', async (req, res) => {
 
         <rect width="${W}" height="${H}" fill="#f3f4f6"/>
         <g filter="url(#shadow)">
-          <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="28" fill="#fff"/>
+          <rect x="${nameY}" y="${metaY}" width="${cardW}" height="${cardH}" rx="28" fill="#fff"/>
         </g>
 
         <!-- Banda superior -->
-        <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${headerH}" rx="28" fill="url(#hdr)"/>
+        <rect x="${nameY}" y="${metaY}" width="${cardW}" height="${headerH}" rx="28" fill="url(#hdr)"/>
         <text x="${W/2}" y="${cardY + headerH - 28}" text-anchor="middle"
               font-family="Inter,system-ui" font-size="46" font-weight="800" fill="#ffffff">
           FULL DAY INCUBIANO
         </text>
 
         <!-- Leyenda -->
-        <rect x="${cardX + 70}" y="${cardY + headerH + 405}" width="${cardW - 140}" height="60"
+        <rect x="${nameY + 70}" y="${metaY + headerH + 405}" width="${cardW - 140}" height="60"
               rx="14" fill="#eef2ff" stroke="#c7d2fe" stroke-width="1"/>
-        <text x="${W/2}" y="${cardY + headerH + 445}" text-anchor="middle"
+        <text x="${W/2}" y="${metaY + headerH + 445}" text-anchor="middle"
               font-family="Inter,system-ui" font-size="24" fill="#4b5563">
           Escanea el QR para registrar tu asistencia
         </text>
 
         <!-- Nombre -->
-        <text x="${W/2}" y="${cardY + headerH + 360}" text-anchor="middle"
+        <text x="${W/2}" y="${metaY + headerH + 360}" text-anchor="middle"
               font-family="Inter,system-ui" font-size="44" font-weight="800" fill="#111827">
           ${nombre.replace(/&/g,'&amp;')}
         </text>
@@ -234,14 +234,14 @@ app.get('/card/:id.png', async (req, res) => {
         const meta = await sharp(logoPng).metadata();
         const lw = meta.width || 160;
         const left = Math.round(W/2 - lw/2);
-        const top  = cardY + 30; // dentro de la banda
+        const top  = metaY + 30; // dentro de la banda
         img = img.composite([{ input: logoPng, left, top }]);
       }
     } catch {}
 
     // QR centrado
     const qrLeft = Math.round((W - 680) / 2);
-    const qrTop  = cardY + 220;
+    const qrTop  = metaY + 220;
     img = img.composite([{ input: qrPng, left: qrLeft, top: qrTop }]);
 
     const out = await img.png().toBuffer();
