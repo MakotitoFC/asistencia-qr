@@ -98,6 +98,26 @@ async function setAsistenciaSI(rowIndex, headers) {
 
 const getBase = (req) => (BASE_URL?.trim() ? BASE_URL.trim().replace(/\/+$/, '') : `${req.protocol}://${req.get('host')}`);
 
+// Busca el logo en /public con varias extensiones (Linux es case-sensitive)
+async function loadLogoBuffer() {
+  const variants = [
+    'logo.png','LOGO.png',
+    'logo.jpg','LOGO.jpg',
+    'logo.jpeg','LOGO.jpeg',
+    'logo.webp','LOGO.webp',
+    'logo.svg','LOGO.svg'
+  ];
+  for (const name of variants) {
+    try {
+      const p = path.join(__dirname, 'public', name);
+      const buf = await fs.readFile(p);
+      return buf;
+    } catch {}
+  }
+  return null;
+}
+
+
 // ---- Endpoints ----
 app.get('/healthz', (req,res)=>res.type('text').send('ok'));
 
@@ -147,66 +167,107 @@ app.get('/qr/:id.png', async (req,res) => {
 });
 
 // CARD PNG (logo local + título + QR + leyenda + nombre)
+// CARD PNG (estilo WhatsApp: fondo verde, tarjeta blanca, medallón con logo, QR grande)
 app.get('/card/:id.png', async (req, res) => {
   try {
     const id = decodeURIComponent(req.params.id || '').trim();
     if (!id) return res.status(400).send('Falta id');
 
+    // 1) Participante
     const info = await getParticipantById(id);
     if (info.rowIndex === -1) return res.status(404).send('ID no encontrado');
-
     const nombre = (info.nombre || '').toString().trim() || `ID ${info.id}`;
+
+    // 2) QR de asistencia
     const base = getBase(req);
-    const url = `${base}/attend?pid=${encodeURIComponent(id)}`;
+    const url  = `${base}/attend?pid=${encodeURIComponent(id)}`;
     const qrPng = await QRCode.toBuffer(url, { width: 680, margin: 1 });
 
-    // Lienzo vertical 1080x1350
+    // 3) Layout
     const W = 1080, H = 1350;
+    const BG = '#00A884';                        // fondo verde
+    const THEME = THEME_COLOR || '#0b57d0';      // azul de cabecera en la tarjeta
+
+    const cardX = 70, cardY = 210, cardW = W - 140, cardH = H - 320;
+    const badgeD = 168;                           // diámetro del círculo del logo
+    const badgeCx = Math.round(W / 2);
+    const badgeCy = cardY;                        // justo encima de la tarjeta
+
+    // 4) SVG base (fondo, tarjeta con sombra, cabecera, textos, medallón)
     const svg = Buffer.from(`
       <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stop-color="${THEME_COLOR}"/>
+          <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="12" stdDeviation="24" flood-color="#000" flood-opacity="0.18"/>
+          </filter>
+          <linearGradient id="hdr" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="${THEME}"/>
             <stop offset="100%" stop-color="#174ea6"/>
           </linearGradient>
-          <filter id="sh" x="-50%" y="-50%" width="200%" height="200%">
-            <feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#000" flood-opacity="0.15"/>
-          </filter>
         </defs>
-        <rect width="${W}" height="${H}" fill="#f4f6fb"/>
-        <rect x="40" y="40" rx="28" width="${W-80}" height="${H-80}" fill="#fff" filter="url(#sh)"/>
-        <rect x="40" y="40" rx="28" width="${W-80}" height="120" fill="url(#g)"/>
-        <text x="${W/2}" y="115" text-anchor="middle" font-family="Inter,system-ui" font-size="44" font-weight="800" fill="#fff">${EVENT_NAME}</text>
 
-        <text x="${W/2}" y="340" text-anchor="middle" font-family="Inter,system-ui" font-size="22" fill="#6b7280">Escanea el QR para registrar asistencia</text>
-        
-        <text x="${W/2}" y="${H-210}" text-anchor="middle" font-family="Inter,system-ui" font-size="38" font-weight="800" fill="#111827">${nombre.replace(/&/g,'&amp;')}</text>
-        <text x="${W/2}" y="${H-170}" text-anchor="middle" font-family="Inter,system-ui" font-size="22" fill="#6b7280">ID: ${id}${EVENT_DATE ? ' · ' + EVENT_DATE : ''}</text>
+        <!-- Fondo -->
+        <rect width="${W}" height="${H}" fill="${BG}"/>
+
+        <!-- Tarjeta -->
+        <g filter="url(#shadow)">
+          <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="28" fill="#ffffff"/>
+        </g>
+
+        <!-- Cabecera dentro de la tarjeta -->
+        <rect x="${cardX}" y="${cardY}" width="${cardW}" height="120" rx="28" fill="url(#hdr)"/>
+        <text x="${W/2}" y="${cardY + 80}" text-anchor="middle"
+              font-family="Inter,system-ui" font-size="44" font-weight="800" fill="#fff">
+          ${EVENT_NAME}
+        </text>
+
+        <!-- Leyenda -->
+        <text x="${W/2}" y="${cardY + 180}" text-anchor="middle"
+              font-family="Inter,system-ui" font-size="24" fill="#6b7280">
+          Escanea el QR para registrar asistencia
+        </text>
+
+        <!-- Nombre e ID/fecha -->
+        <text x="${W/2}" y="${cardY + cardH - 90}" text-anchor="middle"
+              font-family="Inter,system-ui" font-size="40" font-weight="800" fill="#111827">
+          ${nombre.replace(/&/g,'&amp;')}
+        </text>
+        <text x="${W/2}" y="${cardY + cardH - 48}" text-anchor="middle"
+              font-family="Inter,system-ui" font-size="22" fill="#6b7280">
+          ID: ${id}${EVENT_DATE ? ' · ' + EVENT_DATE : ''}
+        </text>
+
+        <!-- Medallón del logo (anillos) -->
+        <circle cx="${badgeCx}" cy="${badgeCy}" r="${Math.round(badgeD/2)}" fill="#ffffff" />
+        <circle cx="${badgeCx}" cy="${badgeCy}" r="${Math.round(badgeD/2 - 8)}" fill="#0d3a5c"/>
+        <circle cx="${badgeCx}" cy="${badgeCy}" r="${Math.round(badgeD/2 - 12)}" fill="#174ea6"/>
       </svg>
     `);
 
     let img = sharp(svg);
 
-    // logo local: public/logo.png (si existe)
-    // logo local: prueba logo.png y LOGO.png (case-sensitive en Linux)
+    // 5) Logo dentro del medallón (se intenta /public/logo.* en varias extensiones)
     try {
-      let logoBuf;
-      try { logoBuf = await fs.readFile(path.join(__dirname, 'public', 'logo.png')); }
-      catch { logoBuf = await fs.readFile(path.join(__dirname, 'public', 'LOGO.png')); }
-
-      const logo = await sharp(logoBuf)
-        .resize({ width: 200, height: 90, fit: 'inside' })
-        .png()
-        .toBuffer();
-
-      img = img.composite([{ input: logo, top: 60, left: 70 }]); // posición actual
+      const logoFile = await loadLogoBuffer();
+      if (logoFile) {
+        const size = Math.round(badgeD * 0.70);
+        const logo = await sharp(logoFile).resize({ width: size, height: size, fit: 'inside' }).png().toBuffer();
+        const left = Math.round(badgeCx - size / 2);
+        const top  = Math.round(badgeCy - size / 2);
+        img = img.composite([{ input: logo, left, top }]);
+      } else {
+        console.warn('Logo no encontrado en /public (logo.png|jpg|jpeg|webp|svg)');
+      }
     } catch (e) {
-      console.warn('Logo no encontrado en /public/logo.png ni /public/LOGO.png');
+      console.warn('Error al componer logo:', e.message);
     }
 
-    // QR centrado
-    img = img.composite([{ input: qrPng, top: 380, left: Math.round((W-680)/2) }]);
+    // 6) QR centrado dentro de la tarjeta
+    const qrLeft = Math.round((W - 680) / 2);
+    const qrTop  = cardY + 220;  // debajo de la leyenda
+    img = img.composite([{ input: qrPng, left: qrLeft, top: qrTop }]);
 
+    // 7) Enviar
     const out = await img.png().toBuffer();
     res.set({
       'Content-Type': 'image/png',
@@ -218,6 +279,7 @@ app.get('/card/:id.png', async (req, res) => {
     res.status(500).send('Error generando card');
   }
 });
+
 
 // Marcar asistencia
 async function attendHandler(req, res) {
