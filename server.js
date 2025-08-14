@@ -189,7 +189,7 @@ app.get('/card/:id.png', async (req, res) => {
 
     // logo local: public/logo.png (si existe)
     try {
-      const logoPath = path.join(__dirname, 'public', 'logo.png');
+      const logoPath = path.join(__dirname, 'public', 'LOGO.png');
       const logoBuf = await fs.readFile(logoPath);
       const logo = await sharp(logoBuf).resize({ width: 200, height: 90, fit: 'inside' }).png().toBuffer();
       img = img.composite([{ input: logo, top: 60, left: 70 }]);
@@ -286,7 +286,7 @@ app.get('/', (_req, res) => {
   </style>
   </head><body>
   <header>
-    <img src="/static/logo.png" alt="logo" onerror="this.style.display='none'"/>
+    <img src="/static/LOGO.png" alt="logo" onerror="this.style.display='none'"/>
     <h1>${EVENT_NAME}</h1>
   </header>
   <div class="container">
