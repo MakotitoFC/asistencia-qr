@@ -180,29 +180,23 @@ app.get('/card/:id.png', async (req, res) => {
     // 2) QR
     const base = getBase(req);
     const url = `${base}/attend?pid=${encodeURIComponent(id)}`;
-    const qrSize = 520;
-    const qrPng  = await QRCode.toBuffer(url, { width: qrSize, margin: 1 });
-
-    // 3) Layout
+    
+        // Layout fijo y orden correcto de cálculos
     const W = 1080, H = 1350;
+    const M = 40;                  // margen exterior
+    const cardX = M, cardY = M;    // posición de la tarjeta
+    const cardW = W - 2*M, cardH = H - 2*M;
+    const headerH = 200;           // alto de la franja superior
 
-    // Tarjeta
-    const cardX = 40, cardY = 40;
-    const cardW = W - 80, cardH = H - 80;
+    // QR: define primero su tamaño y su top/left
+    const qrSize = 520;
+    const qrTop  = cardY + headerH + 60;                  // debajo de la franja
+    const qrLeft = Math.round(W/2 - qrSize/2);
 
-    // Banda superior
-    const headerH = 200;
-
-    // Cuerpo
-    const bodyTop = cardY + headerH + 40;
-
-    // QR centrado
-    const qrLeft = Math.round((W - qrSize) / 2);
-    const qrTop  = bodyTop;
-
-    // Textos debajo del QR
-    const nameY = qrTop + qrSize + 90;
-    const hintY = nameY + 48;
+    // Textos (dependen del qrTop, por eso van después)
+    const nameY = qrTop + qrSize + 60;                    // nombre del asistente
+    const legendBoxY = nameY + 26;                        // cajita de la leyenda
+    const legendTextY = legendBoxY + 40;
 
     const svg = Buffer.from(`
       <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
@@ -216,7 +210,7 @@ app.get('/card/:id.png', async (req, res) => {
           </linearGradient>
         </defs>
 
-        <!-- Fondo -->
+        <!-- Fondo general -->
         <rect width="${W}" height="${H}" fill="#f3f4f6"/>
 
         <!-- Tarjeta -->
@@ -224,46 +218,50 @@ app.get('/card/:id.png', async (req, res) => {
           <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="28" fill="#fff"/>
         </g>
 
-        <!-- Banda -->
+        <!-- Franja superior -->
         <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${headerH}" rx="28" fill="url(#hdr)"/>
-        <text x="${W/2}" y="${cardY + 130}" text-anchor="middle"
+        <text x="${W/2}" y="${cardY + headerH - 28}" text-anchor="middle"
               font-family="Inter,system-ui" font-size="46" font-weight="800" fill="#ffffff">
           FULL DAY INCUBIANO
         </text>
 
-        <!-- Leyenda (solo el contenedor y coordenadas; el texto va aquí) -->
-        <rect x="${cardX + 70}" y="${hintY - 28}" width="${cardW - 140}" height="60"
-              rx="14" fill="#eef2ff" stroke="#c7d2fe" stroke-width="1"/>
-        <text x="${W/2}" y="${hintY + 12}" text-anchor="middle"
-              font-family="Inter,system-ui" font-size="24" fill="#4b5563">
-          Escanea el QR para registrar tu asistencia
-        </text>
-
         <!-- Nombre -->
         <text x="${W/2}" y="${nameY}" text-anchor="middle"
-              font-family="Inter,system-ui" font-size="44" font-weight="800" fill="#111827">
+              font-family="Inter,system-ui" font-size="46" font-weight="800" fill="#111827">
           ${nombre.replace(/&/g,'&amp;')}
+        </text>
+
+        <!-- Leyenda -->
+        <rect x="${cardX + 70}" y="${legendBoxY}" width="${cardW - 140}" height="60"
+              rx="14" fill="#eef2ff" stroke="#c7d2fe" stroke-width="1"/>
+        <text x="${W/2}" y="${legendTextY}" text-anchor="middle"
+              font-family="Inter,system-ui" font-size="24" fill="#4b5563">
+          Escanea el QR para registrar tu asistencia
         </text>
       </svg>
     `);
 
-    let img = sharp(svg);
-
-    // 4) Logo centrado en la banda (si existe)
+        // Logo en la franja superior (cargado desde /public)
     try {
       const logoBuf = await loadLogoBuffer();
       if (logoBuf) {
-        const logoPng = await sharp(logoBuf).resize({ height: 84, fit: 'inside' }).png().toBuffer();
+        const logoH = 60; // alto del logo en la franja
+        const logoPng = await sharp(logoBuf).resize({ height: logoH, fit: 'inside' }).png().toBuffer();
         const meta = await sharp(logoPng).metadata();
         const lw = meta.width || 160;
-        const left = Math.round(W / 2 - lw / 2);
-        const top  = cardY + 30;
-        img = img.composite([{ input: logoPng, left, top }]);
+        const logoTop  = cardY + Math.round((headerH - logoH)/2);
+        const logoLeft = cardX + 24; // margen izquierdo
+        img = img.composite([{ input: logoPng, left: logoLeft, top: logoTop }]);
+      } else {
+        console.warn('Logo no encontrado en /public (logo.png|jpg|jpeg|webp|svg)');
       }
-    } catch (_) {}
+    } catch (e) {
+      console.warn('Error al componer logo:', e.message);
+    }
 
-    // 5) Pegar el QR
+    // QR centrado
     img = img.composite([{ input: qrPng, left: qrLeft, top: qrTop }]);
+
 
     const out = await img.png().toBuffer();
     res.set({
