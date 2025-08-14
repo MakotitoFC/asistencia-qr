@@ -6,6 +6,8 @@ import QRCode from 'qrcode';
 import sharp from 'sharp';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs/promises';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
@@ -167,7 +169,7 @@ app.get('/qr/:id.png', async (req, res) => {
 const THEME = (process.env.THEME_COLOR || '#0b57d0').trim();
 const EVENT = (process.env.EVENT_NAME || 'Mi Evento').trim();
 const DATE  = (process.env.EVENT_DATE || '').trim();
-const LOGO  = (process.env.EVENT_LOGO_URL || '').trim();
+const LOGO  = path.join(__dirname, 'public', 'logo.png'); // logo local
 
 async function fetchLogoBuffer() {
   try {
@@ -202,41 +204,83 @@ app.get('/card/:id', async (req, res) => {
 app.get('/card/:id.png', async (req, res) => {
   try {
     const id = req.params.id;
-    const info = await getParticipantById(id);
+
+    // Obtén nombre e ID desde la hoja:
+    const info = await getParticipantById(id); // <- tu helper existente
     if (info.rowIndex === -1) return res.status(404).send('ID no encontrado');
     const nombre = (info.nombre || '').trim() || `ID ${info.id}`;
 
-    const base = (process.env.BASE_URL?.trim() ? process.env.BASE_URL.trim().replace(/\/+$/, '') : `${req.protocol}://${req.get('host')}`);
-    const url = `${base}/attend?pid=${encodeURIComponent(id)}`;
-    const qrPng = await QRCode.toBuffer(url, { width: 680, margin: 1 });
+    // URL del QR (usa BASE_URL si existe; si no, toma el host de la request)
+    const base = (process.env.BASE_URL?.trim()
+      ? process.env.BASE_URL.trim().replace(/\/+$/, '')
+      : `${req.protocol}://${req.get('host')}`);
+    const url  = `${base}/attend?pid=${encodeURIComponent(id)}`;
 
-    const W = 1080, H = 1350, bg = '#f2f4f7';
+    // Genera QR
+    const qrPng = await QRCode.toBuffer(url, { width: 700, margin: 1 });
+
+    // LEE logo local (si no existe, seguimos sin logo)
+    const logoBuf = await fs.readFile(LOGO_FILE).catch(() => null);
+
+    // Dimensiones y SVG del diseño (card vertical)
+    const W = 1200, H = 1600;
+    const BG = '#f2f4f7';
     const svg = Buffer.from(`
       <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-        <rect width="${W}" height="${H}" fill="${bg}"/>
-        <rect x="60" y="60" rx="36" ry="36" width="${W-120}" height="${H-120}" fill="#ffffff"/>
-        <text x="${W/2}" y="210" text-anchor="middle" font-family="Inter, system-ui" font-size="56" font-weight="800" fill="#111">${EVENT}</text>
-        ${DATE ? `<text x="${W/2}" y="270" text-anchor="middle" font-family="Inter, system-ui" font-size="28" fill="#555">${DATE}</text>` : '' }
-        <text x="${W/2}" y="${H-260}" text-anchor="middle" font-family="Inter, system-ui" font-size="44" font-weight="800" fill="#111">${nombre}</text>
-        <text x="${W/2}" y="${H-210}" text-anchor="middle" font-family="Inter, system-ui" font-size="28" fill="#555">ID: ${id}</text>
-        <rect x="${(W-360)/2}" y="${H-160}" rx="999" width="360" height="60" fill="${THEME}"/>
-        <text x="${W/2}" y="${H-120}" text-anchor="middle" font-family="Inter, system-ui" font-size="26" font-weight="700" fill="#fff">Presenta este QR al ingresar</text>
+        <defs>
+          <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.12"/>
+          </filter>
+        </defs>
+        <rect width="${W}" height="${H}" fill="${BG}"/>
+        <!-- tarjeta -->
+        <rect x="60" y="60" rx="36" ry="36" width="${W-120}" height="${H-120}" fill="#ffffff" filter="url(#shadow)"/>
+        <!-- franja superior -->
+        <rect x="60" y="60" rx="36" ry="36" width="${W-120}" height="120" fill="${THEME}"/>
+        <text x="${W/2}" y="135" text-anchor="middle" font-family="Inter, system-ui" font-size="46" font-weight="800" fill="#fff">${EVENT}</text>
+
+        <!-- textos -->
+        <text x="140" y="330" font-family="Inter, system-ui" font-size="28" fill="#666">Participante:</text>
+        <text x="140" y="390" font-family="Inter, system-ui" font-size="48" font-weight="800" fill="#111">${nombre}</text>
+        <text x="140" y="460" font-family="Inter, system-ui" font-size="28" fill="#666">ID: ${id}</text>
+        ${DATE ? `<text x="140" y="520" font-family="Inter, system-ui" font-size="28" fill="#999">${DATE}</text>` : ''}
+
+        <!-- botón texto -->
+        <rect x="${(W-420)/2}" y="${H-160}" rx="999" width="420" height="70" fill="${THEME}"/>
+        <text x="${W/2}" y="${H-115}" text-anchor="middle" font-family="Inter, system-ui" font-size="28" font-weight="700" fill="#fff">Presenta este QR al ingresar</text>
       </svg>
     `);
 
+    // Composición
     let img = sharp(svg);
-    const logoBuf = await fetchLogoBuffer();
+
+    // Logo centrado (arriba de la info)
     if (logoBuf) {
-      const logoResized = await sharp(logoBuf).resize({ width: 240, height: 120, fit: 'inside' }).png().toBuffer();
-      img = img.composite([{ input: logoResized, top: 110, left: Math.round((W - 240) / 2) }]);
+      const logoResized = await sharp(logoBuf)
+        .resize({ width: 300, height: 140, fit: 'inside' })
+        .png()
+        .toBuffer();
+      img = img.composite([{
+        input: logoResized,
+        top: 180,
+        left: Math.round((W - 300) / 2)
+      }]);
     }
-    img = img.composite([{ input: qrPng, top: 360, left: Math.round((W - 680) / 2) }]);
+
+    // QR centrado
+    img = img.composite([{
+      input: qrPng,
+      top: 620,
+      left: Math.round((W - 700) / 2)
+    }]);
 
     const out = await img.png().toBuffer();
+
+    // Descarga forzada
     res.set({
-        'Content-Type': 'image/png',
-        'Content-Disposition': `attachment; filename="card-${id}.png"`,
-        'Cache-Control': 'no-store, max-age=0'
+      'Content-Type': 'image/png',
+      'Content-Disposition': `attachment; filename="card-${encodeURIComponent(id)}.png"`,
+      'Cache-Control': 'no-store'
     }).send(out);
 
   } catch (e) {
@@ -244,6 +288,7 @@ app.get('/card/:id.png', async (req, res) => {
     res.status(500).send('Error generando card');
   }
 });
+
 
 
 // Handler común para /attend y /asistencia (alias)
@@ -377,6 +422,30 @@ app.get('/', (_req, res) => {
     }
   }
   load();
+  
+  window.downloadCard = async function(id) {
+    try {
+      if (!id) return false;
+      const r = await fetch('/card/' + encodeURIComponent(id) + '.png', { cache: 'no-store' });
+      if (!r.ok) {
+        alert('No se pudo generar la card (' + r.status + ').');
+        return false;
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'card-' + id + '.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert('Error descargando la card.');
+    }
+    return false;
+  }
   </script>
   </body></html>`);
 });
