@@ -167,99 +167,118 @@ app.get('/qr/:id.png', async (req,res) => {
 
 // CARD PNG
 // CARD PNG (logo + barra + QR + nombre + leyenda)
+// CARD PNG (diseño compacto: barra azul + logo izq + título centrado + QR grande + nombre + leyenda)
 app.get('/card/:id.png', async (req, res) => {
   try {
     const id = decodeURIComponent(req.params.id || '').trim();
     if (!id) return res.status(400).send('Falta id');
 
-    // 1) Participante
+    // Participante
     const info = await getParticipantById(id);
     if (info.rowIndex === -1) return res.status(404).send('ID no encontrado');
     const nombre = (info.nombre || '').toString().trim() || `ID ${info.id}`;
 
-    // 2) QR
+    // URL de asistencia y QR
     const base = getBase(req);
-    const url = `${base}/attend?pid=${encodeURIComponent(id)}`;
-    
-    const qrPng = await QRCode.toBuffer(url, { width: 520, margin: 1 });
-    // Layout fijo y orden correcto de cálculos
-    const W = 1080, H = 1350;
-    // ↑ aumenta el margen lateral para hacer la tarjeta más angosta
-    const SIDE = 140;   // prueba 140–180 según gusto
-    const TOP  = 40;
+    const url  = `${base}/attend?pid=${encodeURIComponent(id)}`;
 
-    const cardX = SIDE, cardY = TOP;
-    const cardW = W - 2*SIDE, cardH = H - 2*TOP;
-    const headerH = 200;
+    // === LAYOUT SEGÚN TU DISEÑO (proporción compacta) ===
+    const W = 900;           // ancho total de la imagen
+    const H = 1200;          // alto total de la imagen
+    const M = 24;            // margen exterior
+    const cardX = M, cardY = M;
+    const cardW = W - 2*M, cardH = H - 2*M;
 
-    // centro horizontal de la tarjeta (no del lienzo)
-    const CX = cardX + cardW/2;
+    const headerH = 110;     // altura de la franja azul superior
 
-    const qrSize = 520;
-    const qrTop  = cardY + headerH + 60;
-    const qrLeft = Math.round(CX - qrSize/2);
+    const qrSize = 480;      // tamaño del QR
+    const qrTop  = cardY + headerH + 36;
+    const qrLeft = Math.round(W/2 - qrSize/2);
 
-    const nameY       = qrTop + qrSize + 60;
-    const legendBoxY  = nameY + 26;
+    const nameY       = qrTop + qrSize + 56;   // nombre debajo del QR
+    const legendBoxY  = nameY + 18;            // pill
     const legendTextY = legendBoxY + 40;
 
+    // Genera el QR ya con el tamaño final
+    const qrPng = await QRCode.toBuffer(url, { width: qrSize, margin: 1 });
 
+    // SVG base (tarjeta blanca con sombra + barra azul + título centrado + contenedor del QR + nombre + pill)
     const svg = Buffer.from(`
       <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-            <feDropShadow dx="0" dy="12" stdDeviation="24" flood-color="#000" flood-opacity="0.16"/>
+            <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#000" flood-opacity="0.16"/>
+          </filter>
+          <filter id="qsh" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000" flood-opacity="0.10"/>
           </filter>
           <linearGradient id="hdr" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stop-color="${THEME_COLOR}"/>
+            <stop offset="0%"  stop-color="${THEME_COLOR}"/>
             <stop offset="100%" stop-color="#174ea6"/>
           </linearGradient>
         </defs>
 
+        <!-- Fondo -->
         <rect width="${W}" height="${H}" fill="#f3f4f6"/>
+
+        <!-- Tarjeta -->
         <g filter="url(#shadow)">
-          <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="28" fill="#fff"/>
+          <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="22" fill="#ffffff"/>
         </g>
 
-        <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${headerH}" rx="28" fill="url(#hdr)"/>
-        <text x="${CX}" y="${cardY + headerH - 28}" text-anchor="middle"
-              font-family="Inter,system-ui" font-size="46" font-weight="800" fill="#fff">
-          FULL DAY INCUBIANO
+        <!-- Barra superior -->
+        <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${headerH}" rx="22" fill="url(#hdr)"/>
+        <text x="${W/2}" y="${cardY + Math.round(headerH*0.65)}" text-anchor="middle"
+              font-family="Inter,system-ui" font-size="42" font-weight="800" fill="#ffffff"
+              style="letter-spacing:0.6px">
+          ${EVENT_NAME}
         </text>
 
-        <text x="${CX}" y="${nameY}" text-anchor="middle"
-              font-family="Inter,system-ui" font-size="46" font-weight="800" fill="#111827">
+        <!-- Marco suave para el QR (como tu referencia) -->
+        <g filter="url(#qsh)">
+          <rect x="${qrLeft-16}" y="${qrTop-16}" width="${qrSize+32}" height="${qrSize+32}"
+                rx="16" fill="#ffffff" stroke="#e5e7eb" stroke-width="2"/>
+        </g>
+
+        <!-- Nombre -->
+        <text x="${W/2}" y="${nameY}" text-anchor="middle"
+              font-family="Inter,system-ui" font-size="36" font-weight="800" fill="#111827">
           ${nombre.replace(/&/g,'&amp;')}
         </text>
 
-        <rect x="${cardX + 70}" y="${legendBoxY}" width="${cardW - 140}" height="60"
+        <!-- Leyenda tipo pill -->
+        <rect x="${cardX + 40}" y="${legendBoxY}" width="${cardW - 80}" height="60"
               rx="14" fill="#eef2ff" stroke="#c7d2fe" stroke-width="1"/>
-        <text x="${CX}" y="${legendTextY}" text-anchor="middle"
-              font-family="Inter,system-ui" font-size="24" fill="#4b5563">
+        <text x="${W/2}" y="${legendTextY}" text-anchor="middle"
+              font-family="Inter,system-ui" font-size="22" fill="#4b5563">
           Escanea el QR para registrar tu asistencia
         </text>
       </svg>
     `);
+
     let img = sharp(svg);
 
-    // Logo en franja (opcional)
+    // Logo en la barra (izquierda)
     try {
-      const logoBuf = await loadLogoBuffer();
+      const logoBuf = await loadLogoBuffer(); // busca logo.(png|jpg|jpeg|webp|svg) en /public
       if (logoBuf) {
-        const logoH = 60;
+        const logoH = 40; // altura visual del logo (como en tu captura)
         const logoPng = await sharp(logoBuf).resize({ height: logoH, fit: 'inside' }).png().toBuffer();
         const meta = await sharp(logoPng).metadata();
-        const lw = meta.width || 160;
+        const lw = meta.width || 120;
         const logoTop  = cardY + Math.round((headerH - logoH)/2);
-        const logoLeft = cardX + 24;
+        const logoLeft = cardX + 16;
         img = img.composite([{ input: logoPng, left: logoLeft, top: logoTop }]);
-      }
-    } catch(e) { console.warn('Logo:', e.message); }
 
-    // QR centrado
+        // opcional: reservar espacio visual a la izquierda moviendo un poco el título no es necesario porque lo centramos,
+        // pero si quisieras alinearlo con el logo, habría que convertir el título a <text x="..."> con x desplazado.
+      }
+    } catch { /* sin logo no rompe */ }
+
+    // Pega el QR centrado
     img = img.composite([{ input: qrPng, left: qrLeft, top: qrTop }]);
 
-
+    // Respuesta
     const out = await img.png().toBuffer();
     res.set({
       'Content-Type': 'image/png',
@@ -271,7 +290,6 @@ app.get('/card/:id.png', async (req, res) => {
     res.status(500).send('Error generando card');
   }
 });
-
 
 // Marcar asistencia
 async function attendHandler(req, res) {
