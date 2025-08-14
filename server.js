@@ -219,10 +219,10 @@ app.get('/card/:id.png', async (req, res) => {
     const base = (process.env.BASE_URL?.trim()
       ? process.env.BASE_URL.trim().replace(/\/+$/, '')
       : `${req.protocol}://${req.get('host')}`);
-    const url = `${base}/attend?pid=${encodeURIComponent(id)}`;
-
-    // 3) Genera QR
+    const url  = `${base}/attend?pid=${encodeURIComponent(id)}`; // 👈 ESTE ES EL QR QUE MARCA ASISTENCIA
+     //3) Genera QR como PNG
     const qrPng = await QRCode.toBuffer(url, { width: 640, margin: 1 });
+
 
     // 4) Lee logo local (si falta, seguimos sin logo)
     const logoPath = path.join(__dirname, 'public', 'logo.png');
@@ -383,18 +383,17 @@ app.get('/', (_req, res) => {
     *{box-sizing:border-box} body{margin:0;background:#f3f4f6;font-family:Inter,system-ui}
     header{background:linear-gradient(90deg,var(--bg),#174ea6);color:#fff;padding:18px 24px;display:flex;align-items:center;gap:14px}
     header img{height:36px}
-    .container{max-width:1100px;margin:24px auto;padding:0 16px}
+    .container{max-width:1200px;margin:24px auto;padding:0 16px}
     h1{margin:0;font-size:22px;font-weight:800}
-    .grid{display:grid;grid-template-columns:1fr;gap:14px}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    /* 👇 GRID EN COLUMNAS RESPONSIVE */
+    .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+    /* Tarjetas verticales (no filas) */
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:8px;min-height:160px}
     .name{font-size:18px;font-weight:800;color:var(--text)}
     .sub{color:var(--muted);font-size:14px}
-    .btn{appearance:none;border:0;background:var(--bg);color:#fff;padding:10px 14px;border-radius:10px;font-weight:700;cursor:pointer}
+    .btn{appearance:none;border:0;background:var(--bg);color:#fff;padding:10px 14px;border-radius:10px;font-weight:700;cursor:pointer;width:100%;margin-top:auto}
     .btn:active{transform:translateY(1px)}
-    .muted{color:var(--muted)}
-    .actions{display:flex;gap:10px;align-items:center}
     .err{background:#fee;border:1px solid #f99;color:#900;padding:10px;border-radius:10px;margin-bottom:12px;display:none}
-    @media(min-width:900px){.grid{grid-template-columns:1fr 1fr}}
   </style>
   </head><body>
   <header>
@@ -415,20 +414,17 @@ app.get('/', (_req, res) => {
       if(!r.ok){err.style.display='block';err.textContent='Error '+r.status+' al cargar participantes';list.innerHTML='';return;}
       const j=await r.json();
       list.innerHTML='';
-      if(!j.participants||!j.participants.length){list.innerHTML='<div class="muted">No hay participantes.</div>';return;}
+      if(!j.participants||!j.participants.length){list.innerHTML='<div class="sub">No hay participantes.</div>';return;}
       j.participants.forEach(p=>{
         const id=(p.id||'').toString();
         const nombre=(p.nombre||'').toString();
         const asis=((p.asistencia||'').toString().toUpperCase()==='SI');
         const item=document.createElement('div'); item.className='card';
+        /* 👇 SOLO “Descargar Card” */
         item.innerHTML=
-          '<div>'
-        +   '<div class="name">'+nombre+'</div>'
-        +   '<div class="sub">ID: '+id+' · Asistencia: '+(asis?'SI':'-')+'</div>'
-        + '</div>'
-        + '<div class="actions">'
-        +   '<button class="btn" onclick="downloadCard(\\''+id+'\\')">Descargar Card</button>'
-        + '</div>';
+          '<div class="name">'+nombre+'</div>'
+        + '<div class="sub">ID: '+id+' · Asistencia: '+(asis?'SI':'-')+'</div>'
+        + '<button class="btn" onclick="downloadCard(\\''+id+'\\')">Descargar Card</button>';
         list.appendChild(item);
       });
     }catch(e){err.style.display='block'; err.textContent='Excepción: '+(e.message||e); list.innerHTML='';}
@@ -446,6 +442,7 @@ app.get('/', (_req, res) => {
   </script>
   </body></html>`);
 });
+
 
 
 
