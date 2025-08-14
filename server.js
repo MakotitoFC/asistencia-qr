@@ -286,7 +286,6 @@ app.get('/', (_req, res) => {
   </style>
   </head><body>
   <header>
-    <img src="/static/LOGO.png" alt="logo" onerror="this.style.display='none'"/>
     <h1>${EVENT_NAME}</h1>
   </header>
   <div class="container">
