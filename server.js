@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { google } from 'googleapis';
@@ -167,7 +166,8 @@ app.get('/qr/:id.png', async (req,res) => {
 });
 
 // CARD PNG (logo local + título + QR + leyenda + nombre)
-// CARD PNG (diseño del mock: header morado, círculo con logo, QR, nombre, banda de escaneo y footer)
+// CARD PNG (estilo WhatsApp: fondo verde, tarjeta blanca, medallón con logo, QR grande)
+// CARD PNG (diseño de mock: header azul, círculo con logo, QR, nombre, banda de escaneo y footer)
 app.get('/card/:id.png', async (req, res) => {
   try {
     const id = decodeURIComponent(req.params.id || '').trim();
@@ -181,124 +181,124 @@ app.get('/card/:id.png', async (req, res) => {
     // 2) QR de asistencia
     const base = getBase(req);
     const url  = `${base}/attend?pid=${encodeURIComponent(id)}`;
-
-    const QR_SIZE = 520; // más compacto que antes para dar aire al layout
+    const QR_SIZE = 480;
     const qrPng   = await QRCode.toBuffer(url, { width: QR_SIZE, margin: 1 });
 
-    // 3) Layout general
-    const W = 1080, H = 1500;
-    const BG_OUTSIDE = '#EEF2F7';          // gris muy claro del fondo exterior
-    const CARD_X = 60, CARD_Y = 80, CARD_W = W - 120, CARD_H = H - 140;
-    const RADIUS = 32;
+    // 3) Layout
+    const W = 1080, H = 1600;
+    const CARD_X = 40, CARD_Y = 30, CARD_W = W - 80, CARD_H = H - 60; // tarjeta grande
+    const R = 36;                        // radio esquinas
+    const HDR_H = 260;                   // alto cabecera
+    const HDR_A = '#0D57D5', HDR_B = '#0A49B7';  // degradé header
+    const LINE_COLOR = '#E5E7EB';        // línea divisoria
+    const PILL_W = 800, PILL_H = 100;    // “banda” de escaneo
+    const FOOTER_H = 100;
 
-    // Header dentro de la tarjeta
-    const HDR_H = 220;
-    const HDR_GRAD_1 = '#6D28D9';          // morado
-    const HDR_GRAD_2 = '#4F46E5';          // morado-azulado
-
-    // Círculo del logo (centrado en el header)
-    const BADGE_D  = 140;
-    const BADGE_R  = BADGE_D / 2;
+    // círculo del logo
+    const BADGE_D = 160;
+    const BADGE_R = BADGE_D / 2;
     const BADGE_CX = Math.round(W / 2);
-    const BADGE_CY = CARD_Y + Math.round(HDR_H / 2);
+    const BADGE_CY = CARD_Y + Math.round(HDR_H / 2) - 6; // centrado visual
 
-    // Posición del QR
+    // posiciones QR / textos
     const qrLeft = Math.round((W - QR_SIZE) / 2);
-    const qrTop  = CARD_Y + HDR_H + 100;
+    const qrTop  = CARD_Y + HDR_H + 90;
+    const nameY  = qrTop + QR_SIZE + 120;
+    const pillX  = Math.round((W - PILL_W) / 2);
+    const pillY  = nameY + 34;
+    const footerY = CARD_Y + CARD_H - FOOTER_H;
 
-    // Posición de textos
-    const nameY   = qrTop + QR_SIZE + 120;
-    const pillY   = nameY + 28;
-    const footerY = CARD_Y + CARD_H - 66;
-
-    // 4) SVG base (fondo exterior, tarjeta, header, decorativos, textos)
+    // 4) SVG base
     const svg = Buffer.from(`
       <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-            <feDropShadow dx="0" dy="12" stdDeviation="24" flood-color="#000" flood-opacity="0.16"/>
+            <feDropShadow dx="0" dy="10" stdDeviation="22" flood-color="#000" flood-opacity="0.16"/>
+          </filter>
+          <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.08"/>
           </filter>
           <linearGradient id="hdr" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stop-color="${HDR_GRAD_1}"/>
-            <stop offset="100%" stop-color="${HDR_GRAD_2}"/>
+            <stop offset="0%" stop-color="${HDR_A}"/>
+            <stop offset="100%" stop-color="${HDR_B}"/>
           </linearGradient>
         </defs>
 
-        <!-- Fondo exterior -->
-        <rect width="${W}" height="${H}" fill="${BG_OUTSIDE}"/>
+        <!-- Fondo exterior súper claro -->
+        <rect width="${W}" height="${H}" fill="#F3F4F6"/>
 
         <!-- Tarjeta -->
         <g filter="url(#shadow)">
-          <rect x="${CARD_X}" y="${CARD_Y}" width="${CARD_W}" height="${CARD_H}" rx="${RADIUS}" fill="#ffffff"/>
+          <rect x="${CARD_X}" y="${CARD_Y}" width="${CARD_W}" height="${CARD_H}" rx="${R}" fill="#fff"/>
         </g>
 
-        <!-- Header degradé, solo arriba redondeado -->
+        <!-- Header degradé con rombos translúcidos -->
         <clipPath id="clipHeader">
-          <rect x="${CARD_X}" y="${CARD_Y}" width="${CARD_W}" height="${HDR_H}" rx="${RADIUS}"/>
+          <rect x="${CARD_X}" y="${CARD_Y}" width="${CARD_W}" height="${HDR_H}" rx="${R} ${R} 0 0"/>
         </clipPath>
         <g clip-path="url(#clipHeader)">
           <rect x="${CARD_X}" y="${CARD_Y}" width="${CARD_W}" height="${HDR_H}" fill="url(#hdr)"/>
-          <!-- decorativos: rombos translúcidos -->
-          <rect x="${CARD_X + 26}" y="${CARD_Y + 26}" width="86" height="86" rx="18"
-                transform="rotate(45 ${CARD_X + 26} ${CARD_Y + 26})" fill="rgba(255,255,255,0.18)"/>
-          <rect x="${CARD_X + CARD_W - 112}" y="${CARD_Y + 60}" width="86" height="86" rx="18"
-                transform="rotate(45 ${CARD_X + CARD_W - 112} ${CARD_Y + 60})" fill="rgba(255,255,255,0.18)"/>
+          <rect x="${CARD_X + 40}" y="${CARD_Y + 36}" width="110" height="110" rx="28"
+                transform="rotate(45 ${CARD_X + 40} ${CARD_Y + 36})" fill="rgba(255,255,255,0.15)"/>
+          <rect x="${CARD_X + CARD_W - 150}" y="${CARD_Y + 84}" width="110" height="110" rx="28"
+                transform="rotate(45 ${CARD_X + CARD_W - 150} ${CARD_Y + 84})" fill="rgba(255,255,255,0.15)"/>
         </g>
 
-        <!-- Título -->
-        <text x="${W/2}" y="${CARD_Y + 150}" text-anchor="middle"
-              font-family="Inter,system-ui" font-size="48" font-weight="800" fill="#fff">
+        <!-- Círculo blanco del logo con borde y sombra suave -->
+        <g filter="url(#soft)">
+          <circle cx="${BADGE_CX}" cy="${BADGE_CY}" r="${BADGE_R}" fill="#fff" stroke="#E5E7EB" stroke-width="10"/>
+        </g>
+
+        <!-- Título del evento -->
+        <text x="${W/2}" y="${CARD_Y + HDR_H - 60}" text-anchor="middle"
+              font-family="Inter,system-ui" font-size="46" font-weight="800" fill="#ffffff">
           ${EVENT_NAME}
         </text>
 
-        <!-- Círculo-bisel para el logo (borde gris) -->
-        <circle cx="${BADGE_CX}" cy="${BADGE_CY}" r="${BADGE_R}" fill="#ffffff" stroke="#e5e7eb" stroke-width="8"/>
+        <!-- Línea divisoria -->
+        <line x1="${CARD_X}" y1="${CARD_Y + HDR_H}" x2="${CARD_X + CARD_W}" y2="${CARD_Y + HDR_H}" stroke="${LINE_COLOR}" stroke-width="4" />
 
-        <!-- Leyenda 'Escanea...' en banda gris CLARA – debajo del nombre (se dibuja luego el texto) -->
-        <rect x="${Math.round((W-760)/2)}" y="${pillY + 28}" width="760" height="96" rx="24" fill="#F3F4F6"/>
-
-        <!-- Footer dentro de la tarjeta -->
-        <rect x="${CARD_X}" y="${CARD_Y + CARD_H - 90}" width="${CARD_W}" height="90" fill="#F3F4F6" rx="0 0 ${RADIUS} ${RADIUS}"/>
-        <text x="${W/2}" y="${footerY}" text-anchor="middle"
-              font-family="Inter,system-ui" font-size="26" fill="#9CA3AF">
-          Evento exclusivo para miembros Incubianos
-        </text>
-
-        <!-- Nombre -->
+        <!-- Nombre del asistente -->
         <text x="${W/2}" y="${nameY}" text-anchor="middle"
-              font-family="Inter,system-ui" font-size="44" font-weight="800" fill="#1F2937">
+              font-family="Inter,system-ui" font-size="48" font-weight="800" fill="#374151">
           ${nombre.replace(/&/g,'&amp;')}
         </text>
 
-        <!-- Texto de la banda gris -->
-        <text x="${W/2}" y="${pillY + 88}" text-anchor="middle"
-              font-family="Inter,system-ui" font-size="28" fill="#6B7280">
+        <!-- Banda de escaneo -->
+        <g filter="url(#soft)">
+          <rect x="${pillX}" y="${pillY}" width="${PILL_W}" height="${PILL_H}" rx="22" fill="#F3F4F6"/>
+        </g>
+        <text x="${W/2}" y="${pillY + 64}" text-anchor="middle"
+              font-family="Inter,system-ui" font-size="30" fill="#6B7280" letter-spacing=".5">
           ESCANEA EL QR PARA REGISTRAR TU ASISTENCIA
+        </text>
+
+        <!-- Footer dentro de la tarjeta -->
+        <rect x="${CARD_X}" y="${footerY}" width="${CARD_W}" height="${FOOTER_H}" rx="0 0 ${R} ${R}" fill="#F3F4F6"/>
+        <text x="${W/2}" y="${footerY + 64}" text-anchor="middle"
+              font-family="Inter,system-ui" font-size="26" fill="#9CA3AF">
+          Evento exclusivo para miembros Incubianos
         </text>
       </svg>
     `);
 
     let img = sharp(svg);
 
-    // 5) Logo dentro del círculo (recortado circular)
+    // 5) Logo dentro del círculo, recortado circular
     try {
       const rawLogo = await loadLogoBuffer();
       if (rawLogo) {
-        const LOGO_SIZE = Math.round(BADGE_D * 0.72); // que respire dentro del borde
-        // Recortamos a círculo
-        const logoSquare = await sharp(rawLogo)
+        const LOGO_SIZE = Math.round(BADGE_D * 0.62); // respiración dentro del círculo
+        const square = await sharp(rawLogo)
           .resize({ width: LOGO_SIZE, height: LOGO_SIZE, fit: 'cover' })
-          .png()
-          .toBuffer();
+          .png().toBuffer();
 
         const mask = Buffer.from(`<svg width="${LOGO_SIZE}" height="${LOGO_SIZE}" xmlns="http://www.w3.org/2000/svg">
           <circle cx="${LOGO_SIZE/2}" cy="${LOGO_SIZE/2}" r="${LOGO_SIZE/2}" fill="#fff"/>
         </svg>`);
-
-        const logoCircle = await sharp(logoSquare)
+        const logoCircle = await sharp(square)
           .composite([{ input: mask, blend: 'dest-in' }])
-          .png()
-          .toBuffer();
+          .png().toBuffer();
 
         const left = Math.round(BADGE_CX - LOGO_SIZE/2);
         const top  = Math.round(BADGE_CY - LOGO_SIZE/2);
