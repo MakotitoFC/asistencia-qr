@@ -234,9 +234,9 @@ app.get('/card/:id.png', async (req, res) => {
 
     const out = await img.png().toBuffer();
     res.set({
-        'Content-Type': 'image/png',
-        'Content-Disposition': `attachment; filename="card-${id}.png"`,
-        'Cache-Control': 'no-store, max-age=0'
+      'Content-Type': 'image/png',
+      'Content-Disposition': `attachment; filename="card-${encodeURIComponent(id)}.png"`,
+      'Cache-Control': 'no-store'
     }).send(out);
 
   } catch (e) {
@@ -360,7 +360,7 @@ app.get('/', (_req, res) => {
         +   '<div style="margin-top:8px">'
         +     '<a href="/qr/' + encodeURIComponent(id) + '.png" download="qr-' + id + '.png">Descargar QR</a>'
         +     ' · '
-        +     '<a href="/card/' + encodeURIComponent(id) + '.png" download="card-' + id + '.png">Descargar Card</a>'
+        +     '<a href="#" onclick="return downloadCard(\'' + (id||'') + '\')">Descargar Card</a>'
         +   '</div>'
         + '</div>'
         + '<div style="text-align:right">'
@@ -377,6 +377,31 @@ app.get('/', (_req, res) => {
     }
   }
   load();
+
+  window.downloadCard(id) {
+    try {
+        if (!id) return false;
+        const r = await fetch('/card/' + encodeURIComponent(id) + '.png', { cache: 'no-store' });
+        if (!r.ok) {
+        alert('No se pudo generar la card (' + r.status + ').');
+        return false;
+        }
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'card-' + id + '.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error(e);
+        alert('Error descargando la card.');
+    }
+    return false;
+  }
+
   </script>
   </body></html>`);
 });
