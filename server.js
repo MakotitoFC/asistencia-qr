@@ -233,7 +233,12 @@ app.get('/card/:id.png', async (req, res) => {
     img = img.composite([{ input: qrPng, top: 360, left: Math.round((W - 680) / 2) }]);
 
     const out = await img.png().toBuffer();
-    res.set('Content-Type', 'image/png').send(out);
+    res.set({
+        'Content-Type': 'image/png',
+        'Content-Disposition': `attachment; filename="card-${id}.png"`,
+        'Cache-Control': 'no-store, max-age=0'
+    }).send(out);
+
   } catch (e) {
     console.error(e);
     res.status(500).send('Error generando card');
