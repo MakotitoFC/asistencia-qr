@@ -324,28 +324,38 @@ async function attendHandler(req, res) {
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Asistencia confirmada</title>
 <style>
-  body{font-family:system-ui;margin:0;background:#f5f7fb;color:#111}
-  .wrap{max-width:680px;margin:32px auto;padding:24px}
-  .card{background:#fff;border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.08);padding:24px}
-  .ok{display:flex;align-items:center;gap:12px;color:#0b7a2a;font-weight:700}
-  .ok svg{width:28px;height:28px}
-  .name{font-size:28px;font-weight:800;margin:12px 0 6px}
-  .muted{color:#666}
-  .pill{display:inline-block;background:#e8f0ff;color:#1947e5;padding:6px 12px;border-radius:999px;font-weight:700}
+  :root{--brand:${THEME_COLOR};}
+  body{margin:0;background:#f5f7fb;color:#0f172a;font-family:Inter,system-ui}
+  .wrap{max-width:520px;margin:0 auto;padding:24px}
+  .hero{background:linear-gradient(90deg,var(--brand),#174ea6);color:#fff;border-radius:18px;padding:22px 20px;display:flex;align-items:center;gap:12px}
+  .hero img{height:36px;display:block}
+  .panel{background:#fff;border-radius:18px;box-shadow:0 12px 36px rgba(0,0,0,.10);padding:24px;margin-top:14px}
+  .ok{display:flex;justify-content:center;align-items:center;margin:8px 0 16px}
+  .check{width:68px;height:68px;border-radius:999px;background:#10b981;display:grid;place-items:center;color:#fff;box-shadow:0 8px 18px rgba(16,185,129,.45)}
+  .check svg{width:32px;height:32px}
+  h2{margin:6px 0 6px;font-size:24px}
+  .muted{color:#64748b;margin:6px 0 0}
+  .pill{display:inline-block;background:#eff6ff;color:#1d4ed8;padding:6px 12px;border-radius:999px;font-weight:700;margin-top:10px}
+  .foot{color:#64748b;font-size:13px;text-align:center;margin-top:10px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="card">
-    <div class="ok">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12,0A12,12,0,1,0,24,12,12.013,12.013,0,0,0,12,0Zm5.707,8.293-6.364,6.364a1,1,0,0,1-1.414,0L6.293,10.021a1,1,0,1,1,1.414-1.414l3.222,3.222,5.657-5.657a1,1,0,1,1,1.414,1.414Z"/></svg>
-      Asistencia registrada
-    </div>
-    <div class="name">¡Hola, ${nombreMostrado}!</div>
-    <div class="muted">ID: <b>${info.id}</b></div>
-    <p style="margin:14px 0">${ya ? 'Tu asistencia ya estaba marcada previamente.' : 'Tu asistencia quedó registrada ahora.'}</p>
-    <span class="pill">${EVENT_NAME}</span>
+  <div class="hero">
+    <img src="/static/logo.png" onerror="this.style.display='none'"/>
+    <div style="font-weight:800;letter-spacing:.4px">FULL DAY INCUBIANO</div>
   </div>
+
+  <div class="panel">
+    <div class="ok"><div class="check">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.2l-3.5-3.5L4 14.2 9 19l12-12-1.5-1.5z"/></svg>
+    </div></div>
+    <h2>¡Asistencia registrada!</h2>
+    <div class="muted">Hola, <b>${nombreMostrado}</b> (ID: ${info.id})</div>
+    <span class="pill">Gracias por tu ingreso</span>
+  </div>
+
+  <div class="foot">Puedes cerrar esta ventana.</div>
 </div>
 </body></html>`);
   } catch (e) {
@@ -357,30 +367,42 @@ app.get('/attend', attendHandler);
 app.get('/asistencia', attendHandler); // alias
 
 // Home en columnas con solo “Descargar Card”
+// Home: grid de cards (LOGO + Título + QR + Nombre + Leyenda)
 app.get('/', (_req, res) => {
   res.type('html').send(`<!doctype html><html lang="es"><head>
   <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Credenciales | ${EVENT_NAME}</title>
+  <title>FULL DAY INCUBIANO</title>
   <style>
     :root{--bg:${THEME_COLOR};--text:#111827;--muted:#6b7280;--card:#fff;--border:#e5e7eb}
     *{box-sizing:border-box} body{margin:0;background:#f3f4f6;font-family:Inter,system-ui}
     header{background:linear-gradient(90deg,var(--bg),#174ea6);color:#fff;padding:18px 24px;display:flex;align-items:center;gap:14px}
-    header img{height:36px}
+    header img{height:40px; width:auto}
     .container{max-width:1200px;margin:24px auto;padding:0 16px}
     h1{margin:0;font-size:22px;font-weight:800}
-    .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:8px;min-height:160px}
-    .name{font-size:18px;font-weight:800;color:var(--text)}
-    .sub{color:var(--muted);font-size:14px}
-    .btn{appearance:none;border:0;background:var(--bg);color:#fff;padding:10px 14px;border-radius:10px;font-weight:700;cursor:pointer;width:100%;margin-top:auto}
-    .btn:active{transform:translateY(1px)}
-    .err{background:#fee;border:1px solid #f99;color:#900;padding:10px;border-radius:10px;margin-bottom:12px;display:none}
+    .grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.04);display:flex;flex-direction:column}
+    .card-header{background:linear-gradient(90deg,var(--bg),#174ea6);color:#fff;padding:12px 14px;display:flex;align-items:center;gap:10px}
+    .card-header img{height:28px;width:auto;display:block}
+    .card-title{font-weight:800;letter-spacing:.5px}
+    .card-body{padding:16px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .qr img{width:210px; height:auto; display:block; border-radius:10px; box-shadow:0 3px 12px rgba(0,0,0,.06)}
+    .name{font-size:18px;font-weight:800;color:var(--text);text-align:center}
+    .hint{color:var(--muted);font-size:14px;background:#f3f6ff;border:1px dashed #c7d2fe;padding:10px 12px;border-radius:10px;text-align:center;width:100%}
+    .err{background:#fee;border:1px solid #fbb;color:#900;padding:10px;border-radius:10px;margin-bottom:12px;display:none}
+    .toolbar{display:flex;justify-content:flex-end;margin-bottom:12px}
+    .toolbar button{appearance:none;border:1px solid var(--border);background:#fff;border-radius:10px;padding:8px 10px;cursor:pointer}
+    .toolbar button:hover{background:#f9fafb}
   </style>
   </head><body>
   <header>
-    <h1>${EVENT_NAME}</h1>
+    <img src="/static/logo.png" onerror="this.style.display='none'"/>
+    <h1>FULL DAY INCUBIANO</h1>
   </header>
+
   <div class="container">
+    <div class="toolbar">
+      <button onclick="load()">Actualizar</button>
+    </div>
     <div id="err" class="err"></div>
     <div class="grid" id="list"></div>
   </div>
@@ -394,32 +416,30 @@ app.get('/', (_req, res) => {
       if(!r.ok){err.style.display='block';err.textContent='Error '+r.status+' al cargar participantes';list.innerHTML='';return;}
       const j=await r.json();
       list.innerHTML='';
-      if(!j.participants||!j.participants.length){list.innerHTML='<div class="sub">No hay participantes.</div>';return;}
+      if(!j.participants||!j.participants.length){list.innerHTML='<div class="name" style="opacity:.7">No hay participantes.</div>';return;}
       j.participants.forEach(p=>{
         const id=((p.id??p.ID??p.Id??'')+'').trim();
-        const nombre=((p.nombre??p.Nombre??p.name??'')+'').trim();
-        const asis=((p.asistencia??p.Asistencia??'')+'').trim().toUpperCase()==='SI';
-        const item=document.createElement('div'); item.className='card';
-        item.innerHTML=
-          '<div class="name">'+(nombre||'(sin nombre)')+'</div>'
-        + '<div class="sub">ID: '+id+' · Asistencia: '+(asis?'SI':'-')+'</div>'
-        + '<button class="btn" onclick="downloadCard(\\''+encodeURIComponent(id)+'\\')">Descargar Card</button>';
-        list.appendChild(item);
+        const nombre=((p.nombre??p.Nombre??p.name??'')+'').trim()||'(Sin nombre)';
+        const card=document.createElement('div'); card.className='card';
+        card.innerHTML=
+          '<div class="card-header">'
+          +   '<img src="/static/logo.png" onerror="this.style.display=\\'none\\'"/>'
+          +   '<div class="card-title">FULL DAY INCUBIANO</div>'
+          + '</div>'
+          + '<div class="card-body">'
+          +   '<div class="qr"><img loading="lazy" src="/qr/'+encodeURIComponent(id)+'.png" alt="QR '+id+'"/></div>'
+          +   '<div class="name">'+nombre+'</div>'
+          +   '<div class="hint">Escanea el QR para registrar tu asistencia</div>'
+          + '</div>';
+        list.appendChild(card);
       });
     }catch(e){err.style.display='block'; err.textContent='Excepción: '+(e.message||e); list.innerHTML='';}
   }
-  window.downloadCard=async function(idEnc){
-    try{
-      const r=await fetch('/card/'+idEnc+'.png',{cache:'no-store'});
-      if(!r.ok){alert('No se pudo generar la card ('+r.status+')');return false;}
-      const blob=await r.blob(); const url=URL.createObjectURL(blob);
-      const a=document.createElement('a'); a.href=url; a.download='card-'+decodeURIComponent(idEnc)+'.png'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    }catch(e){console.error(e); alert('Error descargando la card.');}
-    return false;
-  }
-  load();
+  // Auto-actualiza cada 30s para captar nuevas filas en el Sheet
+  load(); setInterval(load, 30000);
   </script>
   </body></html>`);
 });
+
 
 app.listen(PORT, () => console.log('OK en ' + (BASE_URL || ('http://localhost:'+PORT))));
