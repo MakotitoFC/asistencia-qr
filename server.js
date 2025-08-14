@@ -166,6 +166,20 @@ app.get('/qr/:id.png', async (req, res) => {
   }
 });
 
+// DEBUG: ver qué encuentra el backend para un ID
+app.get('/debug/card/:id', async (req,res)=>{
+  const raw = req.params.id;
+  const id = decodeURIComponent(raw);
+  try{
+    const info = await getParticipantById(id);
+    res.json({ raw, decoded:id, found: info.rowIndex !== -1, nombre: info.nombre ?? null });
+  }catch(e){
+    console.error(e);
+    res.status(500).json({ error: e.message || 'err' });
+  }
+});
+
+
 const THEME = (process.env.THEME_COLOR || '#0b57d0').trim();
 const EVENT = (process.env.EVENT_NAME || 'Mi Evento').trim();
 const DATE  = (process.env.EVENT_DATE || '').trim();
@@ -208,92 +222,70 @@ const DATE_CARD  = (process.env.EVENT_DATE || '').trim();
 
 app.get('/card/:id.png', async (req, res) => {
   try {
-    const id = req.params.id;
+    const raw = req.params.id;
+    const id  = decodeURIComponent(raw).trim();     // 👈 importante
+    if (!id) return res.status(400).send('Falta id');
 
-    // 1) Lee participante
-    const info = await getParticipantById(id); // helper existente
+    // 1) Busca participante
+    const info = await getParticipantById(id);
     if (info.rowIndex === -1) return res.status(404).send('ID no encontrado');
+
     const nombre = (info.nombre || '').trim() || `ID ${info.id}`;
 
-    // 2) URL para QR
+    // 2) URL del QR de asistencia
     const base = (process.env.BASE_URL?.trim()
       ? process.env.BASE_URL.trim().replace(/\/+$/, '')
       : `${req.protocol}://${req.get('host')}`);
-    const url  = `${base}/attend?pid=${encodeURIComponent(id)}`; // 👈 ESTE ES EL QR QUE MARCA ASISTENCIA
-     //3) Genera QR como PNG
+    const url  = `${base}/attend?pid=${encodeURIComponent(id)}`;
     const qrPng = await QRCode.toBuffer(url, { width: 640, margin: 1 });
 
-
-    // 4) Lee logo local (si falta, seguimos sin logo)
+    // 3) Logo local
     const logoPath = path.join(__dirname, 'public', 'logo.png');
     const logoBuf  = await fs.readFile(logoPath).catch(() => null);
 
-    // 5) Lienzo y SVG (diseño profesional)
-    const W = 1400, H = 900;      // apaisado para compartir/imprimir
-    const bg = '#f4f6fb';
+    // 4) Composición (apaisado, pro)
+    const W = 1400, H = 900; const bg = '#f4f6fb';
     const card = Buffer.from(`
       <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="grad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stop-color="${THEME_CARD}"/>
+            <stop offset="0%" stop-color="${THEME}"/>
             <stop offset="100%" stop-color="#174ea6"/>
           </linearGradient>
           <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
             <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#000" flood-opacity="0.12"/>
           </filter>
         </defs>
-
         <rect width="${W}" height="${H}" fill="${bg}"/>
-
-        <!-- tarjeta principal -->
         <rect x="40" y="40" rx="28" width="${W-80}" height="${H-80}" fill="#fff" filter="url(#shadow)"/>
-
-        <!-- banda superior -->
         <rect x="40" y="40" rx="28" width="${W-80}" height="110" fill="url(#grad)"/>
-        <text x="${W/2}" y="110" text-anchor="middle" font-family="Inter,system-ui" font-size="44" font-weight="800" fill="#fff">${EVENT_CARD}</text>
+        <text x="${W/2}" y="110" text-anchor="middle" font-family="Inter,system-ui" font-size="44" font-weight="800" fill="#fff">${EVENT}</text>
 
-        <!-- bloques -->
-        <rect x="80" y="180" rx="20" width="${W-160}" height="${H-260}" fill="#ffffff" />
-
-        <!-- línea divisoria -->
+        <rect x="80" y="180" rx="20" width="${W-160}" height="${H-260}" fill="#ffffff"/>
         <line x1="${W/2}" y1="200" x2="${W/2}" y2="${H-120}" stroke="#e5e7eb" stroke-width="2"/>
-        
-        <!-- Títulos y texto -->
+
         <text x="120" y="260" font-family="Inter,system-ui" font-size="22" fill="#6b7280">Participante</text>
         <text x="120" y="320" font-family="Inter,system-ui" font-size="42" font-weight="800" fill="#111827">${nombre.replace(/&/g,'&amp;')}</text>
         <text x="120" y="370" font-family="Inter,system-ui" font-size="22" fill="#6b7280">ID</text>
         <text x="120" y="410" font-family="Inter,system-ui" font-size="28" fill="#111827">${id}</text>
-        ${DATE ? `<text x="120" y="460" font-family="Inter,system-ui" font-size="22" fill="#9ca3af">${DATE_CARD}</text>` : ''}
+        ${DATE ? `<text x="120" y="460" font-family="Inter,system-ui" font-size="22" fill="#9ca3af">${DATE}</text>` : ''}
 
-        <!-- pie botón -->
         <rect x="${W/2 - 180}" y="${H-180}" rx="999" width="360" height="62" fill="${THEME}"/>
         <text x="${W/2}" y="${H-140}" text-anchor="middle" font-family="Inter,system-ui" font-size="24" font-weight="700" fill="#fff">Presenta este QR al ingresar</text>
       </svg>
     `);
 
-    // 6) Composición con sharp
     let img = sharp(card);
 
-    // Logo (si existe): sobre la banda superior
     if (logoBuf) {
       const logoResized = await sharp(logoBuf).resize({ width: 200, height: 80, fit: 'inside' }).png().toBuffer();
-      img = img.composite([{
-        input: logoResized,
-        top: 60,
-        left: 70
-      }]);
+      img = img.composite([{ input: logoResized, top: 60, left: 70 }]);
     }
 
-    // QR a la derecha
-    img = img.composite([{
-      input: qrPng,
-      top: 240,
-      left: W/2 + 90
-    }]);
+    img = img.composite([{ input: qrPng, top: 240, left: Math.round(W/2 + 90) }]);
 
     const out = await img.png().toBuffer();
 
-    // 7) Forzar descarga
     res.set({
       'Content-Type': 'image/png',
       'Content-Disposition': `attachment; filename="card-${encodeURIComponent(id)}.png"`,
@@ -305,9 +297,6 @@ app.get('/card/:id.png', async (req, res) => {
     res.status(500).send('Error generando card');
   }
 });
-
-
-
 
 // Handler común para /attend y /asistencia (alias)
 async function attendHandler(req, res) {
@@ -416,26 +405,30 @@ app.get('/', (_req, res) => {
       list.innerHTML='';
       if(!j.participants||!j.participants.length){list.innerHTML='<div class="sub">No hay participantes.</div>';return;}
       j.participants.forEach(p=>{
-        const id=(p.id||'').toString();
-        const nombre=(p.nombre||'').toString();
-        const asis=((p.asistencia||'').toString().toUpperCase()==='SI');
+        // 👇 lee id/nombre aunque vengan con otra capitalización o espacios
+        const id = ((p.id ?? p.ID ?? p.Id ?? p.iD ?? '').toString()).trim();
+        const nombre = ((p.nombre ?? p.Nombre ?? p.name ?? '').toString()).trim();
+        const asis = ((p.asistencia ?? p.Asistencia ?? '').toString().trim().toUpperCase()==='SI');
+
         const item=document.createElement('div'); item.className='card';
-        /* 👇 SOLO “Descargar Card” */
         item.innerHTML=
-          '<div class="name">'+nombre+'</div>'
+          '<div class="name">'+(nombre||'(sin nombre)')+'</div>'
         + '<div class="sub">ID: '+id+' · Asistencia: '+(asis?'SI':'-')+'</div>'
-        + '<button class="btn" onclick="downloadCard(\\''+id+'\\')">Descargar Card</button>';
+        + '<button class="btn" onclick="downloadCard(\\''+encodeURIComponent(id)+'\\')">Descargar Card</button>';
         list.appendChild(item);
       });
     }catch(e){err.style.display='block'; err.textContent='Excepción: '+(e.message||e); list.innerHTML='';}
   }
-  window.downloadCard=async function(id){
+  window.downloadCard = async function(idEnc){
     try{
-      const r=await fetch('/card/'+encodeURIComponent(id)+'.png',{cache:'no-store'});
-      if(!r.ok){alert('No se pudo generar la card ('+r.status+')');return false;}
-      const blob=await r.blob(); const url=URL.createObjectURL(blob);
-      const a=document.createElement('a'); a.href=url; a.download='card-'+id+'.png'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    }catch(e){console.error(e); alert('Error descargando la card.');}
+      const r = await fetch('/card/'+idEnc+'.png', { cache: 'no-store' });
+      if(!r.ok){ alert('No se pudo generar la card ('+r.status+')'); return false; }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'card-'+decodeURIComponent(idEnc)+'.png';
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }catch(e){ console.error(e); alert('Error descargando la card.'); }
     return false;
   }
   load();
