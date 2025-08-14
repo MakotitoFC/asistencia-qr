@@ -201,82 +201,99 @@ app.get('/card/:id', async (req, res) => {
 });
 
 // PNG final para enviar
+
+const THEME_CARD = (process.env.THEME_COLOR || '#0b57d0').trim();
+const EVENT_CARD = (process.env.EVENT_NAME || 'FULL DAY INCUBIANO').trim();
+const DATE_CARD  = (process.env.EVENT_DATE || '').trim();
+
 app.get('/card/:id.png', async (req, res) => {
   try {
     const id = req.params.id;
 
-    // Obtén nombre e ID desde la hoja:
-    const info = await getParticipantById(id); // <- tu helper existente
+    // 1) Lee participante
+    const info = await getParticipantById(id); // helper existente
     if (info.rowIndex === -1) return res.status(404).send('ID no encontrado');
     const nombre = (info.nombre || '').trim() || `ID ${info.id}`;
 
-    // URL del QR (usa BASE_URL si existe; si no, toma el host de la request)
+    // 2) URL para QR
     const base = (process.env.BASE_URL?.trim()
       ? process.env.BASE_URL.trim().replace(/\/+$/, '')
       : `${req.protocol}://${req.get('host')}`);
-    const url  = `${base}/attend?pid=${encodeURIComponent(id)}`;
+    const url = `${base}/attend?pid=${encodeURIComponent(id)}`;
 
-    // Genera QR
-    const qrPng = await QRCode.toBuffer(url, { width: 700, margin: 1 });
+    // 3) Genera QR
+    const qrPng = await QRCode.toBuffer(url, { width: 640, margin: 1 });
 
-    // LEE logo local (si no existe, seguimos sin logo)
-    const logoBuf = await fs.readFile(LOGO_FILE).catch(() => null);
+    // 4) Lee logo local (si falta, seguimos sin logo)
+    const logoPath = path.join(__dirname, 'public', 'logo.png');
+    const logoBuf  = await fs.readFile(logoPath).catch(() => null);
 
-    // Dimensiones y SVG del diseño (card vertical)
-    const W = 1200, H = 1600;
-    const BG = '#f2f4f7';
-    const svg = Buffer.from(`
+    // 5) Lienzo y SVG (diseño profesional)
+    const W = 1400, H = 900;      // apaisado para compartir/imprimir
+    const bg = '#f4f6fb';
+    const card = Buffer.from(`
       <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
         <defs>
+          <linearGradient id="grad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="${THEME_CARD}"/>
+            <stop offset="100%" stop-color="#174ea6"/>
+          </linearGradient>
           <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-            <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.12"/>
+            <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#000" flood-opacity="0.12"/>
           </filter>
         </defs>
-        <rect width="${W}" height="${H}" fill="${BG}"/>
-        <!-- tarjeta -->
-        <rect x="60" y="60" rx="36" ry="36" width="${W-120}" height="${H-120}" fill="#ffffff" filter="url(#shadow)"/>
-        <!-- franja superior -->
-        <rect x="60" y="60" rx="36" ry="36" width="${W-120}" height="120" fill="${THEME}"/>
-        <text x="${W/2}" y="135" text-anchor="middle" font-family="Inter, system-ui" font-size="46" font-weight="800" fill="#fff">${EVENT}</text>
 
-        <!-- textos -->
-        <text x="140" y="330" font-family="Inter, system-ui" font-size="28" fill="#666">Participante:</text>
-        <text x="140" y="390" font-family="Inter, system-ui" font-size="48" font-weight="800" fill="#111">${nombre}</text>
-        <text x="140" y="460" font-family="Inter, system-ui" font-size="28" fill="#666">ID: ${id}</text>
-        ${DATE ? `<text x="140" y="520" font-family="Inter, system-ui" font-size="28" fill="#999">${DATE}</text>` : ''}
+        <rect width="${W}" height="${H}" fill="${bg}"/>
 
-        <!-- botón texto -->
-        <rect x="${(W-420)/2}" y="${H-160}" rx="999" width="420" height="70" fill="${THEME}"/>
-        <text x="${W/2}" y="${H-115}" text-anchor="middle" font-family="Inter, system-ui" font-size="28" font-weight="700" fill="#fff">Presenta este QR al ingresar</text>
+        <!-- tarjeta principal -->
+        <rect x="40" y="40" rx="28" width="${W-80}" height="${H-80}" fill="#fff" filter="url(#shadow)"/>
+
+        <!-- banda superior -->
+        <rect x="40" y="40" rx="28" width="${W-80}" height="110" fill="url(#grad)"/>
+        <text x="${W/2}" y="110" text-anchor="middle" font-family="Inter,system-ui" font-size="44" font-weight="800" fill="#fff">${EVENT_CARD}</text>
+
+        <!-- bloques -->
+        <rect x="80" y="180" rx="20" width="${W-160}" height="${H-260}" fill="#ffffff" />
+
+        <!-- línea divisoria -->
+        <line x1="${W/2}" y1="200" x2="${W/2}" y2="${H-120}" stroke="#e5e7eb" stroke-width="2"/>
+        
+        <!-- Títulos y texto -->
+        <text x="120" y="260" font-family="Inter,system-ui" font-size="22" fill="#6b7280">Participante</text>
+        <text x="120" y="320" font-family="Inter,system-ui" font-size="42" font-weight="800" fill="#111827">${nombre.replace(/&/g,'&amp;')}</text>
+        <text x="120" y="370" font-family="Inter,system-ui" font-size="22" fill="#6b7280">ID</text>
+        <text x="120" y="410" font-family="Inter,system-ui" font-size="28" fill="#111827">${id}</text>
+        ${DATE ? `<text x="120" y="460" font-family="Inter,system-ui" font-size="22" fill="#9ca3af">${DATE_CARD}</text>` : ''}
+
+        <!-- pie botón -->
+        <rect x="${W/2 - 180}" y="${H-180}" rx="999" width="360" height="62" fill="${THEME}"/>
+        <text x="${W/2}" y="${H-140}" text-anchor="middle" font-family="Inter,system-ui" font-size="24" font-weight="700" fill="#fff">Presenta este QR al ingresar</text>
       </svg>
     `);
 
-    // Composición
-    let img = sharp(svg);
+    // 6) Composición con sharp
+    let img = sharp(card);
 
-    // Logo centrado (arriba de la info)
+    // Logo (si existe): sobre la banda superior
     if (logoBuf) {
-      const logoResized = await sharp(logoBuf)
-        .resize({ width: 300, height: 140, fit: 'inside' })
-        .png()
-        .toBuffer();
+      const logoResized = await sharp(logoBuf).resize({ width: 200, height: 80, fit: 'inside' }).png().toBuffer();
       img = img.composite([{
         input: logoResized,
-        top: 180,
-        left: Math.round((W - 300) / 2)
+        top: 60,
+        left: 70
       }]);
     }
 
-    // QR centrado
+    // QR a la derecha
     img = img.composite([{
       input: qrPng,
-      top: 620,
-      left: Math.round((W - 700) / 2)
+      top: 240,
+      left: W/2 + 90
     }]);
 
     const out = await img.png().toBuffer();
 
-    // Descarga forzada
+    // 7) Forzar descarga
     res.set({
       'Content-Type': 'image/png',
       'Content-Disposition': `attachment; filename="card-${encodeURIComponent(id)}.png"`,
@@ -288,6 +305,7 @@ app.get('/card/:id.png', async (req, res) => {
     res.status(500).send('Error generando card');
   }
 });
+
 
 
 
@@ -359,96 +377,76 @@ app.get('/healthz', (_req, res) => res.send('ok'));
 app.get('/', (_req, res) => {
   res.type('html').send(`<!doctype html><html lang="es"><head>
   <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Asistencia QR</title>
+  <title>Credenciales | ${process.env.EVENT_NAME || 'Evento'}</title>
   <style>
-    body{font-family:system-ui;margin:24px;max-width:900px}
-    img{max-width:220px}
-    .card{border:1px solid #ddd;border-radius:10px;padding:12px;margin:10px 0;display:flex;justify-content:space-between;align-items:center;gap:16px}
-    .err{background:#fee;border:1px solid #f99;color:#900;padding:10px;border-radius:8px;margin:12px 0}
+    :root{--bg:#0b57d0;--text:#111827;--muted:#6b7280;--card:#fff;--border:#e5e7eb}
+    *{box-sizing:border-box} body{margin:0;background:#f3f4f6;font-family:Inter,system-ui}
+    header{background:linear-gradient(90deg,var(--bg),#174ea6);color:#fff;padding:18px 24px;display:flex;align-items:center;gap:14px}
+    header img{height:36px}
+    .container{max-width:1100px;margin:24px auto;padding:0 16px}
+    h1{margin:0;font-size:22px;font-weight:800}
+    .grid{display:grid;grid-template-columns:1fr;gap:14px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .name{font-size:18px;font-weight:800;color:var(--text)}
+    .sub{color:var(--muted);font-size:14px}
+    .btn{appearance:none;border:0;background:var(--bg);color:#fff;padding:10px 14px;border-radius:10px;font-weight:700;cursor:pointer}
+    .btn:active{transform:translateY(1px)}
+    .muted{color:var(--muted)}
+    .actions{display:flex;gap:10px;align-items:center}
+    .err{background:#fee;border:1px solid #f99;color:#900;padding:10px;border-radius:10px;margin-bottom:12px;display:none}
+    @media(min-width:900px){.grid{grid-template-columns:1fr 1fr}}
   </style>
   </head><body>
-  <h2>Generar QR (participantes desde Google Sheet)</h2>
-  <div id="log" class="err" style="display:none"></div>
-  <div id="list">Cargando...</div>
+  <header>
+    <img src="/static/logo.png" alt="logo" onerror="this.style.display='none'"/>
+    <h1>${process.env.EVENT_NAME || 'Evento'}</h1>
+  </header>
+  <div class="container">
+    <div id="err" class="err"></div>
+    <div class="grid" id="list"></div>
+  </div>
 
   <script>
   async function load() {
-    const log = document.getElementById('log');
-    const list = document.getElementById('list');
-    try {
-      const r = await fetch('/api/participants', { cache: 'no-store' });
-      if (!r.ok) {
-        const t = await r.text();
-        log.style.display='block'; log.textContent = 'Error al cargar participantes: ' + r.status + ' ' + t;
-        list.textContent = '';
-        return;
-      }
-      const j = await r.json();
-      list.innerHTML = '';
-
-      if (!j.participants || !j.participants.length) {
-        list.textContent = 'No hay participantes.';
-        return;
-      }
-
-      j.participants.forEach(p => {
-        const id = p.id || ''; 
-        const nombre = p.nombre || '';
-        const asis = (p.asistencia || '').toString().toUpperCase() === 'SI';
-        const div = document.createElement('div'); 
-        div.className = 'card';
-        div.innerHTML = 
+    const err=document.getElementById('err');
+    const list=document.getElementById('list'); list.innerHTML='Cargando...';
+    try{
+      const r=await fetch('/api/participants',{cache:'no-store'});
+      if(!r.ok){err.style.display='block';err.textContent='Error '+r.status+' al cargar participantes';list.innerHTML='';return;}
+      const j=await r.json();
+      list.innerHTML='';
+      if(!j.participants||!j.participants.length){list.innerHTML='<div class="muted">No hay participantes.</div>';return;}
+      j.participants.forEach(p=>{
+        const id=(p.id||'').toString();
+        const nombre=(p.nombre||'').toString();
+        const asis=((p.asistencia||'').toString().toUpperCase()==='SI');
+        const item=document.createElement('div'); item.className='card';
+        item.innerHTML=
           '<div>'
-        +   '<div><b>' + nombre + '</b></div>'
-        +   '<div>ID: ' + id + '</div>'
-        +   '<div>Asistencia: ' + (asis ? 'SI' : '-') + '</div>'
-        +   '<div style="margin-top:8px">'
-        +     '<a href="/qr/' + encodeURIComponent(id) + '.png" download="qr-' + id + '.png">Descargar QR</a>'
-        +     ' · '
-        +     '<a href="/card/' + encodeURIComponent(id) + '.png" download="card-' + id + '.png">Descargar Card</a>'
-        +   '</div>'
+        +   '<div class="name">'+nombre+'</div>'
+        +   '<div class="sub">ID: '+id+' · Asistencia: '+(asis?'SI':'-')+'</div>'
         + '</div>'
-        + '<div style="text-align:right">'
-        +   '<img src="/qr/' + encodeURIComponent(id) + '.png" alt="QR"/>'
+        + '<div class="actions">'
+        +   '<button class="btn" onclick="downloadCard(\\''+id+'\\')">Descargar Card</button>'
         + '</div>';
-        list.appendChild(div);
+        list.appendChild(item);
       });
-    } catch (e) {
-      const msg = (e && e.message) ? e.message : String(e);
-      log.style.display='block'; 
-      log.textContent = 'Excepción en load(): ' + msg;
-      list.textContent = '';
-      console.error(e);
-    }
+    }catch(e){err.style.display='block'; err.textContent='Excepción: '+(e.message||e); list.innerHTML='';}
   }
-  load();
-  
-  window.downloadCard = async function(id) {
-    try {
-      if (!id) return false;
-      const r = await fetch('/card/' + encodeURIComponent(id) + '.png', { cache: 'no-store' });
-      if (!r.ok) {
-        alert('No se pudo generar la card (' + r.status + ').');
-        return false;
-      }
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'card-' + id + '.png';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error(e);
-      alert('Error descargando la card.');
-    }
+  window.downloadCard=async function(id){
+    try{
+      const r=await fetch('/card/'+encodeURIComponent(id)+'.png',{cache:'no-store'});
+      if(!r.ok){alert('No se pudo generar la card ('+r.status+')');return false;}
+      const blob=await r.blob(); const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download='card-'+id+'.png'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }catch(e){console.error(e); alert('Error descargando la card.');}
     return false;
   }
+  load();
   </script>
   </body></html>`);
 });
+
 
 
 app.listen(PORT, () => console.log(`Servidor listo en puerto ${PORT}`));
