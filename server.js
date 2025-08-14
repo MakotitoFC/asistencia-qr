@@ -165,11 +165,7 @@ app.get('/qr/:id.png', async (req,res) => {
   }
 });
 
-// CARD PNG (logo local + título + QR + leyenda + nombre)
-// CARD PNG (estilo WhatsApp: fondo verde, tarjeta blanca, medallón con logo, QR grande)
-// CARD PNG (diseño de mock: header azul, círculo con logo, QR, nombre, banda de escaneo y footer)
-// CARD PNG (franja superior amplia con degradado + logo centrado, sin rombos)
-// CARD PNG (banda superior amplia con logo, QR, nombre y leyenda)
+// CARD PNG
 app.get('/card/:id.png', async (req, res) => {
   try {
     const id = decodeURIComponent(req.params.id || '').trim();
@@ -181,10 +177,11 @@ app.get('/card/:id.png', async (req, res) => {
     const nombre = (info.nombre || '').toString().trim() || `ID ${info.id}`;
     const base = getBase(req);
     const url  = `${base}/attend?pid=${encodeURIComponent(id)}`;
-    const qrPng = await QRCode.toBuffer(url, { width: 680, margin: 1 });
-
+    const qrSize = 520; // tamaño seguro para que abajo entre el nombre y la leyenda
+    const qrPng  = await QRCode.toBuffer(url, { width: qrSize, margin: 1 });
+   
     const W = 1080, H = 1350;
-    const cardX = 40, cardY = 40, cardW = W - 80, cardH = H - 80;
+    const nameY = qrTop + qrSize + 110, metaY = nameY + 40, cardW = W - 80, cardH = H - 80;
     const headerH = 200;
 
     const svg = Buffer.from(`
@@ -244,7 +241,7 @@ app.get('/card/:id.png', async (req, res) => {
 
     // QR centrado
     const qrLeft = Math.round((W - 680) / 2);
-    const qrTop  = cardY + headerH + 40;
+    const qrTop  = cardY + 220;
     img = img.composite([{ input: qrPng, left: qrLeft, top: qrTop }]);
 
     const out = await img.png().toBuffer();
@@ -391,7 +388,7 @@ app.get('/', (_req, res) => {
           +   '<div class="qr"><img loading="lazy" src="/qr/'+encodeURIComponent(id)+'.png" alt="QR '+id+'"/></div>'
           +   '<div class="name">'+nombre+'</div>'
           +   '<div class="hint">Escanea el QR para registrar tu asistencia</div>'
-          +   '<div class="actions"><button class="btn-dl" onclick="downloadCard(\\''+encodeURIComponent(id)+'\\')">Descargar Card</button></div>'
+          +   '<a class="btn" href="/card/'+encodeURIComponent(id)+'.png" download="card-'+id+'.png">Descargar Card</a>';
           + '</div>';
         list.appendChild(card);
       });
