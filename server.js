@@ -184,7 +184,7 @@ app.get('/card/:id.png', async (req, res) => {
 
     // === LAYOUT SEGÚN TU DISEÑO (proporción compacta) ===
     const W = 900;           // ancho total de la imagen
-    const H = 1200;          // alto total de la imagen
+    const H = 800;          // alto total de la imagen
     const M = 24;            // margen exterior
     const cardX = M, cardY = M;
     const cardW = W - 2*M, cardH = H - 2*M;
