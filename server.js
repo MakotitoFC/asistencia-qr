@@ -181,6 +181,7 @@ app.get('/card/:id.png', async (req, res) => {
     const base = getBase(req);
     const url = `${base}/attend?pid=${encodeURIComponent(id)}`;
     
+    const qrPng = await QRCode.toBuffer(url, { width: 520, margin: 1 });
     // Layout fijo y orden correcto de cálculos
     const W = 1080, H = 1350;
     const M = 40;
@@ -396,10 +397,7 @@ app.get('/', (_req, res) => {
           +   '<div class="qr"><img loading="lazy" src="/qr/'+encodeURIComponent(id)+'.png" alt="QR '+id+'"/></div>'
           +   '<div class="name">'+nombre+'</div>'
           +   '<div class="hint">Escanea el QR para registrar tu asistencia</div>'
-          +   '<button class="btn" type="button"
-                onclick="downloadCard('${encodeURIComponent(id)}')">
-                Descargar Card
-              </button>';
+          +   '<button class="btn" type="button" onclick="downloadCard(\\''+encodeURIComponent(id)+'\\')">Descargar Card</button>'
           + '</div>';
         list.appendChild(card);
       });
@@ -408,22 +406,13 @@ app.get('/', (_req, res) => {
   // Auto-actualiza cada 30s para captar nuevas filas en el Sheet
   load(); setInterval(load, 30000);
   async function downloadCard(idEnc){
-    try{
-      const r = await fetch('/card/'+idEnc+'.png', { cache:'no-store' });
-      if(!r.ok){ alert('No se pudo generar la card ('+r.status+')'); return; }
-      const blob = await r.blob();
-      const url  = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'card-'+decodeURIComponent(idEnc)+'.png';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    }catch(e){
-      console.error(e);
-      alert('Error descargando la card.');
-    }
+    const r = await fetch('/card/'+idEnc+'.png',{cache:'no-store'});
+    if(!r.ok){ alert('No se pudo generar la card ('+r.status+')'); return; }
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'card-'+decodeURIComponent(idEnc)+'.png';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   }
   </script>
   </body></html>`);
